@@ -17,6 +17,7 @@ pub enum ExchangeErr {
     Binance(Error),
     Kraken(Error),
     Coinbase(Error),
+    Gateio(Error),
 }
 
 impl From<tungstenite::Error> for Error {

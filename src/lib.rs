@@ -7,4 +7,5 @@ mod kraken;
 mod orderbook;
 mod stdin;
 mod websocket;
+mod gateio;
 pub mod orderly;

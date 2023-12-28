@@ -37,6 +37,7 @@ pub(crate) enum Exchange {
     Binance,
     Kraken,
     Coinbase,
+    Gateio
 }
 
 impl ToString for Exchange {
@@ -46,6 +47,7 @@ impl ToString for Exchange {
             Exchange::Binance => "binance".to_string(),
             Exchange::Kraken => "kraken".to_string(),
             Exchange::Coinbase => "coinbase".to_string(),
+            Exchange::Gateio => "gateio".to_string(),
         }
     }
 }
@@ -140,6 +142,7 @@ pub(crate) struct Exchanges {
     binance: OrderDepths,
     kraken: OrderDepthsMap,
     coinbase: OrderDepthsMap,
+    gateio: OrderDepths,
 }
 
 impl Exchanges {
@@ -149,6 +152,7 @@ impl Exchanges {
             binance: OrderDepths::new(),
             kraken: OrderDepthsMap::new(),
             coinbase: OrderDepthsMap::new(),
+            gateio: OrderDepths::new(),
         }
     }
 
@@ -156,6 +160,10 @@ impl Exchanges {
     /// orderbook of the exchange.
     pub(crate) fn update(&mut self, t: InTick) {
         match t.exchange {
+            Exchange::Gateio => {
+                self.gateio.bids = t.bids;
+                self.gateio.asks = t.asks;
+            },
             Exchange::Bitstamp => {
                 self.bitstamp.bids = t.bids;
                 self.bitstamp.asks = t.asks;
@@ -193,6 +201,7 @@ impl Exchanges {
     pub(crate) fn to_tick(&self) -> OutTick {
         let bids: Vec<Level> =
             self.bitstamp.bids.clone()
+                .merge(self.gateio.bids.clone())
                 .merge(self.binance.bids.clone())
                 .merge_map(self.kraken.bids.clone())
                 .merge_map(self.coinbase.bids.clone())
@@ -201,6 +210,7 @@ impl Exchanges {
 
         let asks: Vec<Level> =
             self.bitstamp.asks.clone()
+                .merge(self.gateio.asks.clone())
                 .merge(self.binance.asks.clone())
                 .merge_map(self.kraken.asks.clone())
                 .merge_map(self.coinbase.asks.clone())

@@ -1,7 +1,7 @@
 use crate::error::{Error, ExchangeErr};
 use crate::grpc::OrderBookService;
 use crate::orderbook::{Exchanges, InTick, OutTick};
-use crate::{bitstamp, stdin, binance, websocket, kraken, coinbase};
+use crate::{bitstamp, stdin, binance, websocket, kraken, coinbase, gateio};
 use futures::channel::mpsc::UnboundedSender;
 use futures::{join, SinkExt, StreamExt};
 use log::{debug, error, info};
@@ -16,6 +16,7 @@ pub async fn run(
     no_binance: bool,
     no_kraken: bool,
     no_coinbase: bool,
+    no_gateio: bool,
 ) -> Result<(), Error>
 {
     let connector = Connector::new();
@@ -26,7 +27,7 @@ pub async fn run(
     });
 
     connector.run(symbol,
-                  no_bitstamp, no_binance, no_kraken, no_coinbase).await?;
+                  no_bitstamp, no_binance, no_kraken, no_coinbase, no_gateio).await?;
 
     Ok(())
 }
@@ -50,6 +51,7 @@ impl Connector {
         no_binance: bool,
         no_kraken: bool,
         no_coinbase: bool,
+        no_gateio: bool,
     ) -> Result<(), Error>
     {
         let (
@@ -57,16 +59,19 @@ impl Connector {
             ws_binance,
             ws_kraken,
             ws_coinbase,
+            ws_gateio,
         ) = join!(
             bitstamp::connect(symbol),
             binance::connect(symbol),
             kraken::connect(symbol),
             coinbase::connect(symbol),
+            gateio::connect(symbol),
         );
         let mut ws_bitstamp = ws_bitstamp?;
         let mut ws_binance = ws_binance?;
         let mut ws_kraken = ws_kraken?;
         let mut ws_coinbase = ws_coinbase?;
+        let mut ws_gateio = ws_gateio?;
 
         let mut rx_stdin = stdin::rx();
         let (tx_in_ticks, mut rx_in_ticks) = futures::channel::mpsc::unbounded();
@@ -121,6 +126,21 @@ impl Connector {
                         break
                     }
                 },
+                  ws_msg = ws_gateio.next() => {
+                    let tx = tx_in_ticks.clone();
+
+                    let res = handle(ws_msg)
+                        .and_then(|msg| {
+                            if no_gateio { Ok(()) }
+                            else { msg.parse_and_send(gateio::parse, tx) }
+                        })
+                        .map_err(ExchangeErr::Gateio);
+
+                    if let Err(e) = res {
+                        error!("Err: {:?}", e);
+                        break
+                    }
+                },
                 ws_msg = ws_binance.next() => {
                     let tx = tx_in_ticks.clone();
 
@@ -168,6 +188,7 @@ impl Connector {
         // Gracefully close connection by Close-handshake procedure
         join!(
             websocket::close(&mut ws_bitstamp),
+            websocket::close(&mut ws_gateio),
             websocket::close(&mut ws_binance),
             websocket::close(&mut ws_kraken),
             websocket::close(&mut ws_coinbase)

@@ -12,7 +12,7 @@ mod proto {
 /// Connects to the gRPC server and streams the orderbook summary.
 #[derive(Parser)]
 struct Cli {
-    #[clap(short, long, help = "(Optional) Port number of the gRPC server. Default: 50051")]
+    #[clap(short, long, help = "(Optional) Port number of the gRPC server. Default: 50054")]
     port: Option<usize>,
 }
 
@@ -21,7 +21,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     env_logger::init();
 
     let args = Cli::parse();
-    let port: usize = args.port.unwrap_or(50051);
+    let port: usize = args.port.unwrap_or(50054);
     let addr = format!("http://[::1]:{}", port);
 
     let mut client = OrderbookAggregatorClient::connect(addr).await?;
