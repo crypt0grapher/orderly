@@ -12,6 +12,8 @@ mod proto {
 /// Connects to the gRPC server and streams the orderbook summary.
 #[derive(Parser)]
 struct Cli {
+    #[clap(long, help = "(Optional) Host number of the gRPC server. Default: localhost")]
+    host: Option<String>,
     #[clap(short, long, help = "(Optional) Port number of the gRPC server. Default: 50054")]
     port: Option<usize>,
 }
@@ -21,8 +23,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     env_logger::init();
 
     let args = Cli::parse();
+    let host: String = args.host.unwrap_or("[::1]".to_string());
     let port: usize = args.port.unwrap_or(50054);
-    let addr = format!("http://[::1]:{}", port);
+    let addr = format!("http://{}:{}", host, port);
 
     let mut client = OrderbookAggregatorClient::connect(addr).await?;
 
@@ -40,7 +43,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // setting up indicatif
     let m = MultiProgress::new();
     let spinner_style = ProgressStyle::default_spinner()
-        .template("{prefix:.bold.dim} {spinner} {bar:40.cyan/blue} {wide_msg}")
+        .template("{prefix:.bold.dim} {spinner} {bar:40.cyan/blue} {wide_msg}")?
         .tick_chars("⠁⠂⠄⡀⢀⠠⠐⠈ ");
 
     let bid0 = m.add(ProgressBar::new(100));
@@ -91,7 +94,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             pb.set_style(spinner_style.clone());
         });
 
-    tokio::spawn(async move { let _ = m.join_and_clear(); });
+    // tokio::spawn(async move { let _ = m.join_and_clear(); });
 
     // listening to stream
     while let Some(res) = response.message().await? {
@@ -118,6 +121,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             pb_asks[i].set_level(ask_max_len, level)
         );
     }
+
+    m.clear().unwrap();
 
     Ok(())
 }
